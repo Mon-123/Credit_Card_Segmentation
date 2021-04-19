@@ -1,0 +1,203 @@
+# Customer Segmentation Project
+
+#Load Libraries
+x = c("ggplot2", "corrgram", "DMwR", "caret", "randomForest", "unbalanced", "C50", "dummies", "e1071", "Information",
+     "MASS", "rpart", "gbm", "ROSE", 'sampling', 'DataCombine', 'inTrees','dplyr') 
+
+#install.packages(x)
+lapply(x, require, character.only = TRUE)
+rm(x)
+
+setwd("C:/Users/Monali/OneDrive/Desktop/Case Study-DS/Credit Card segmentation")
+
+
+## Read the data
+Data = read.csv("credit-card-data.csv", header = T, na.strings = c(" ", "", "NA"))
+
+##Data Inspection 
+head(Data)
+
+#Checking the data types
+str(Data)
+
+colnames(Data)
+
+summary(Data)
+#That returns some basic calculations for each column. If the column has numbers, you'll see the minimum and maximum values along with median, mean, 1st quartile and 3rd quartile. 
+
+install.packages("psych")
+library(psych)
+describe(Data)
+
+
+#finding out the missing values in data
+sum(is.na(Data))
+mean(is.na(Data))
+
+#as misisng value is only 0.001 of toral data we can delete it
+Data <- na.omit(Data)
+
+#CHecking whether all the missing values are deleted
+sum(is.na(Data))
+
+Data <- Data[-c(1)]
+head(Data)
+
+Data <- scale(Data)
+head(Data)
+
+KMO(Data)
+
+cortest.bartlett(Data, n=NULL, diag=TRUE)
+
+# Parallel Analysis (TYPE IN: factoring method)
+x <- fa.parallel(Data, fm="pa", fa="both", n.iter=1)
+
+# Pricipal Components Analysis (TYPE IN: rotation method)
+fit <- principal(Data, x$ncomp, rotate="varimax") 
+print(fit$loadings, cutoff=.3)
+
+# To plot PCA
+factor.plot(fit)
+# To plot PCA
+factor.plot(fit)
+fa.diagram(fit)
+
+# Factor Analysis (TYPE IN: rotation method, factoring method)
+fit <- fa(Data, x$nfact, rotate="promax", fm="pa")
+print(fit$loadings, cutoff=.3)
+
+factor.plot(fit)
+fa.diagram(fit)
+
+#cluster Ananlysis
+
+library(tidyverse)
+library(cluster)
+library(haven)
+library(ggdendro)
+library(NbClust)
+library(factoextra)
+library(klaR)
+library(data.table)
+library(rlang)
+library(dplyr)
+library(NbClust)
+library(ggpubr)
+theme_set(theme_pubr())
+library(corrplot)
+
+
+mydatastd <- scale(Data)
+head(mydatastd)
+
+# Elbow method
+fviz_nbclust(mydatastd, kmeans, method = "wss") +
+    geom_vline(xintercept = 4, linetype = 2)+
+  labs(subtitle = "Elbow method")
+  
+# Silhouette method
+fviz_nbclust(mydatastd, kmeans, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+  
+
+set.seed(96743)  
+k <- kmeans(mydatastd, centers=4, nstart = 25)
+
+k$center
+
+clusplot(mydatastd, k$cluster, color=TRUE, shade=TRUE, 
+         labels=4, lines=0, main="K-means cluster plot")
+#The figure shown above plotted by two components which cover 47.62% of the point variability.
+
+# Cluster size
+k$size
+
+#determining the optimal clusters
+
+#Elbow method
+wss <- (nrow(mydatastd)-1)*sum(apply(mydatastd,2,var))
+
+for (i in 2:15) {
+    wss[i] <- sum(kmeans(mydatastd, centers=i)$tot.withinss)
+    }
+
+plot(1:15, wss, type="b", pch = 19, frame = FALSE,
+     xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+     
+fviz_nbclust(mydatastd, kmeans, method = "wss") +
+    geom_vline(xintercept = 4, linetype = 2)+
+    labs(subtitle = "Elbow method")
+    
+#According to the Elbow Method, the elbow point of the model seems seven cluster is the best choice.
+
+# function to compute average silhouette for k clusters
+avg_sil <- function(k) {
+  km.res <- kmeans(mydatastd, centers = k, nstart = 25, iter.max = 50)
+  ss <- silhouette(km.res$cluster, dist(mydatastd))
+  mean(ss[, 3])
+}
+
+# Compute and plot wss for k = 2 to k = 15
+k.values <- 2:15
+
+# extract avg silhouette for 2-15 clusters
+avg_sil_values <- map_dbl(k.values, avg_sil)
+
+plot(k.values, avg_sil_values,
+       type = "b", pch = 19, frame = FALSE, 
+       xlab = "Number of clusters K",
+       ylab = "Average Silhouettes")
+       
+
+fviz_nbclust(mydatastd, kmeans, method = "silhouette")
+
+set.seed(96743)        # because starting assignments are random
+k <- kmeans(mydatastd, centers=4, nstart = 25)
+
+k$center
+
+clusplot(mydatastd, k$cluster, color=TRUE, shade=TRUE, 
+         labels=4, lines=0, main="K-means cluster plot")
+#The figure shown above plotted by two components which cover 47.62% of the point variability
+
+# Cluster size
+k$size
+
+
+# Execution of k-means with k=7
+set.seed(1234)
+
+seg.k7 <- kmeans(mydatastd, centers=5)
+
+# Mean values of each cluster
+aggregate(mydatastd, by=list(seg.k7$cluster), mean)
+
+
+seg.k7$size
+
+
+# Clustering 
+library(GGally)
+install.packages("GGally")
+install.packages("ggplot2")
+ggpairs(cbind(mydatastd, Cluster=as.factor(seg.k7$cluster)),
+        columns=1:6, aes(colour=Cluster, alpha=0.5),
+        lower=list(continuous="points"),
+        upper=list(continuous="blank"),
+        axisLabels="none", switch="both") +
+        theme_bw()
+        
+seg.k7
+
+fviz_cluster(seg.k7, data = mydatastd)
+
+
+cc_withclusters<- mutate(mydatastd, cc_hclusters)
+cc_withclusters
+count(cc_withclusters, cc_hclusters)
+
+
+######################################### END ##############################
+
